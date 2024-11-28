@@ -1,0 +1,3 @@
+Zycore-1.5.0 from https://github.com/zyantific/zycore-c/releases
+Zydis-3.2.1 from https://github.com/zyantific/zydis/tree/4022f22f9280650082a9480519c86a6e2afde2f3/msvc
+Select MT build x86/x64 lib
