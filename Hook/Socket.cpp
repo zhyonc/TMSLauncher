@@ -14,7 +14,8 @@ namespace {
 	const int timeoutSec = 5;
 
 	static WSADATA wsaData{};
-	static struct sockaddr* gSockAddr = nullptr;
+	static struct sockaddr* gChannelSockAddr = nullptr;
+	static struct sockaddr* gLoginSockAddr = nullptr;
 	static std::string connectKey = "";
 	static unsigned char recvXOR = 0x00;
 
@@ -154,14 +155,34 @@ namespace {
 	// 5.Send connect key before CClientSocket::OnConnect(this,bSuccess)
 	static auto _connect = decltype(&connect)(GetProcAddress(GetModuleHandleW(L"Ws2_32.dll"), "connect"));
 	int WINAPI connect_Hook(SOCKET s, const struct sockaddr* name, int namelen) {
-		sockaddr_in* addr_in = (sockaddr_in*)name;
 		int res = SOCKET_ERROR;
-		if (addr_in->sin_port == htons(defaultPort)) {
-			DEBUG(L"Connect to " + Str2WStr(IP2Str(gSockAddr)));
-			res = _connect(s, gSockAddr, sizeof(*gSockAddr));
+		sockaddr_in* addr_in = (sockaddr_in*)name;
+		std::string serverReturnedIP = IP2Str(name);
+		USHORT serverReturnedPort = ntohs(addr_in->sin_port);
+		if (serverReturnedPort == defaultPort) {
+			DEBUG(L"Connect to login server");
+			res = _connect(s, gLoginSockAddr, sizeof(*gLoginSockAddr));
 		}
 		else {
-			res = _connect(s, name, namelen);
+			DEBUG(L"Connect to channel server with port: " + std::to_wstring(serverReturnedPort));
+			if (serverReturnedIP == defaultIP) {
+				// Server returned localhost ip and channel port
+				if (gChannelSockAddr->sa_family == AF_INET6) {
+					sockaddr_in6* addr_ipv6 = (sockaddr_in6*)gChannelSockAddr;
+					addr_ipv6->sin6_port = addr_in->sin_port;
+				}
+				else {
+					sockaddr_in* addr_ipv4 = (sockaddr_in*)gChannelSockAddr;
+					addr_ipv4->sin_port = addr_in->sin_port;
+				}
+				// Using launcher-side addr to connect channel server
+				res = _connect(s, gChannelSockAddr, sizeof(*gChannelSockAddr));
+			}
+			else {
+				// Server returned public ip and channel port
+				// Using server-provided addr to connect channel server
+				res = _connect(s, name, namelen);
+			}
 		}
 		if (connectKey.empty()) {
 			return res;
@@ -239,8 +260,9 @@ namespace Socket {
 		connectKey = key;
 	}
 
-	bool Redirect(const std::string& addr, const unsigned short port) {
-		InitSockAddr(&gSockAddr, addr, port);
+	bool Redirect(const std::string& channelAddr, const std::string& loginAddr, const unsigned short loginPort) {
+		InitSockAddr(&gChannelSockAddr, channelAddr, 0);
+		InitSockAddr(&gLoginSockAddr, loginAddr, loginPort);
 		return SHOOK(true, &_connect, connect_Hook);
 	}
 

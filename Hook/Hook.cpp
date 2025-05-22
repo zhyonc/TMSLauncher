@@ -107,7 +107,7 @@ namespace {
 			if (Config::IsSendConnectKey) {
 				Socket::SetConnectKey(Config::ConnectKey);
 			}
-			if (!Socket::Redirect(Config::LoginServerAddr, Config::LoginServerPort)) {
+			if (!Socket::Redirect(Config::ChannelServerAddr, Config::LoginServerAddr, Config::LoginServerPort)) {
 				DEBUG(L"Unable to redirect the connection");
 			}
 			if (Config::IsRecvXOR) {
